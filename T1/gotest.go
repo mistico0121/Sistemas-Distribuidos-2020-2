@@ -12,6 +12,8 @@ import (
     "encoding/csv"     // Leer archivos csv
     "strings"
 
+    "time"
+
     //"strconv" // Convertir de string a int
 )
 
@@ -169,6 +171,12 @@ func ReduceProjection(mapList chan[]M, sendFinalValue chan[]M){
             }
         }
     sendFinalValue <- final
+}
+
+func timeEvaluator(timestring string) date{
+    t, err := time.Parse("2006-01-02", "2011-01-19")
+
+    return t
 }
 
 
