@@ -1,15 +1,16 @@
 package main
 
 import (
-    //"bufio"   // Leer STDIN
+    "bufio"   // Leer STDIN
     //"flag"    // Leer flags
     "fmt"     // Print
-    //"log"     // Escribir Logs
+    "log"     // Escribir Logs
     "os"      // Leer sistema de archivos
     //"runtime" // Imprimir # de GoRouitnes
     //"strings" // Usar Replace()
     "sync"
     "encoding/csv"     // Leer archivos csv
+    "strings"
 
     //"strconv" // Convertir de string a int
 )
@@ -32,6 +33,12 @@ type structData struct {
     Poblacion string
     Fecha string
     Casos string
+}
+
+func checkError(message string, err error) {
+    if err != nil {
+        log.Fatal(message, err)
+    }
 }
 
 
@@ -74,14 +81,56 @@ func MapSelect(line []string)[]M{
 
 }
 
-func MapProjection(keysToUse []string, line []string, )[]M{
+func mapToCSV(mapList []M, operation string){
+
+    stringfilename := fmt.Sprintf("%s%s",operation,".csv")
+
+    
+    file, err := os.Create(stringfilename)
+    checkError("Cannot create file", err)
+    defer file.Close()
+
+    writer := csv.NewWriter(file)
+    defer writer.Flush()
+    
+
+    fmt.Println(stringfilename)
+
+    for _, list:= range mapList{
+        
+        var s []string
+
+        //index, M
+        for _, EME := range list{
+            
+            s = append(s, EME)
+            
+        }
+
+        err := writer.Write(s)
+        checkError("Cannot write to file", err)
+    }
+}
+
+func MapProjection(keysToUse []string, line []string)[]M{
 
     var mapSlice []M
+
+    //Auxiliar
+    m1 := M{
+        "Region": line[0],
+        "Codigo region": line[1],
+        "Comuna": line[2],
+        "Codigo comuna": line[3],
+        "Poblacion": line[4],
+        "Fecha": line[5],
+        "Casos confirmados": line[6],
+    }
 
     req := M{}
 
     for _, neededKey := range keysToUse{
-        req[neededKey] = value[neededKey]
+        req[neededKey] = m1[neededKey]
     }
 
     mapSlice = append(mapSlice, req)
@@ -108,35 +157,15 @@ func MapP(line []string, atrIndex int)[]structData{
 
 
 
-func ReduceProjection(keysToUse []string, mapList chan[]M, sendFinalValue chan[]M){
-
-    m := map[Key]M
+func ReduceProjection(mapList chan[]M, sendFinalValue chan[]M){
 
     var final []M
 
     for list:= range mapList{
             for _, value := range list{
 
-                //Si la misma lista de strings se encuentra en m, no se agrega
-                //de caso contrario, se agrega a final, y al diccionario en el
-                //que checkeamos
-
-                //Lista de strings
-                var valuesList []string
-
-                //armamos a partir de values de las llaves de M
-                for _, neededKey := range keysToUse{
-                    valuesList = append(keysToUse, value[neededKey])
-                }
-
-
-                if val, ok := m[valuesList]; ok {
-                    //do something here
-                } else {
-                    final = append(final, value)
-                    m[valuesList] = value
-                }
-
+                final = append(final, value)
+                
             }
         }
     sendFinalValue <- final
@@ -234,17 +263,17 @@ func main() {
 
 
         //USER INPUT
-        var col_name string
-        fmt.Scanln(&col_name)
+        in := bufio.NewReader(os.Stdin)
+        linee, _ := in.ReadString('\n')
+        col_name := strings.Replace(linee,"\n","",-1)
+        //SE ASUME QUE SE INGRESAN NOMBRES DE COLUMNAS
 
         var filter string
         fmt.Scanln(&filter)
 
-        var value string
-        fmt.Scanln(&value)
-
-        //
-
+        in2 := bufio.NewReader(os.Stdin)
+        line2, _ := in2.ReadString('\n')
+        value := strings.Replace(line2,"\n","",-1)
 
         //SIGUIENDO TUTORIAL MAP REDUCE
         lists := make(chan []M)
@@ -268,7 +297,7 @@ func main() {
         wg.Wait()
         close(lists)
 
-        fmt.Println(<- finalValue)
+        mapToCSV(<- finalValue, first)
 
     case "PROJECTION":
         fmt.Println("SE HA SELECCIONADO FUNCION PROJECTION")
@@ -281,13 +310,19 @@ func main() {
         var keysToUse []string
 
         for i := 0; i < number_of_columns; i++ {
-            var keyToAdd string
-            fmt.Scanln(&keyToAdd)
+            
+            in := bufio.NewReader(os.Stdin)
+            linee, _ := in.ReadString('\n')
+            lineee := strings.Replace(linee,"\n","",-1)
 
             //SE ASUME QUE SE INGRESAN NOMBRES DE COLUMNAS
-            keysToUse = append(keysToUse, keyToAdd)
+            keysToUse = append(keysToUse, lineee)
+
+            
         }
 
+        fmt.Println(keysToUse)
+        
         //SIGUIENDO TUTORIAL MAP REDUCE
         lists := make(chan []M)
         finalValue := make(chan []M)
@@ -300,7 +335,7 @@ func main() {
         for _, line:= range csvLines{
             go func(dataa []string){
                 defer wg.Done()
-                lists <- MapSelect(keysToUse, dataa)
+                lists <- MapProjection(keysToUse, dataa)
             }(line)
         }
 
@@ -310,44 +345,33 @@ func main() {
         wg.Wait()
         close(lists)
 
-        fmt.Println(<- finalValue)
+        mapToCSV(<- finalValue, first)
 
     case "GROUP":
-        var col_name0 string
-        fmt.Scanln(&col_name0)
+        /*
+        in2 := bufio.NewReader(os.Stdin)
+        line2, _ := in2.ReadString('\n')
+        col_name0 := strings.Replace(line2,"\n","",-1)
 
         var aggregate string
         fmt.Scanln(&aggregate)
 
-        var col_name1 string
-        fmt.Scanln(&col_name1)
+        in3 := bufio.NewReader(os.Stdin)
+        line3, _ := in3.ReadString('\n')
+        col_name1 := strings.Replace(line3,"\n","",-1)
 
         var functionSelect string
 
         fmt.Scanln(&functionSelect)
 
         //SIEMPRE AGREGA, pedir input AGGREGATE es una formalidad
-        //selectFunction(col_name0, col_name1, functionSelect)
+        groupAggregateFunction(col_name0, col_name1, functionSelect)
+        */
     default:
         fmt.Println("NO ES OPERACION VALIDA")
     
     }
 
-    /*
-    for _, line := range csvLines {
-        data := empData{
-            Region: line[0],
-            Codigo_Region : line[1],
-            Comuna : line[2],
-            Codigo_Comuna : line[3],
-            Poblacion : line[4],
-            Fecha : line[5],
-            Casos : line[6],
-        }
-        fmt.Println(data.Region + " " + data.Codigo_Comuna + " " + data.Casos)
-    }
-    */
 }
 
-// Hacer lo mismo que en la ayudantía para el select
 
