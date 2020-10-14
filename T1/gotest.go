@@ -14,7 +14,7 @@ import (
 
     "time"
 
-    //"strconv" // Convertir de string a int
+    "strconv" // Convertir de string a int
 )
 
 // filename = Covid-19_std.csv
@@ -43,22 +43,6 @@ func checkError(message string, err error) {
     }
 }
 
-
-/*
-func projectionFunction(numeroo int){
-    fmt.Println(numeroo)
-
-}
-*/
-
-/*
-func groupAggregateFunction(col_name0, col_name1, functionSelect string){
-    fmt.Println(col_name0)
-    fmt.Println(col_name1)
-    fmt.Println(functionSelect)
-}
-*/
-
 //Entra una linea del csv en forma de lista de strings
 //Sale una lista de map
 func MapSelect(line []string)[]M{
@@ -83,7 +67,7 @@ func MapSelect(line []string)[]M{
 
 }
 
-func mapToCSV(mapList []M, operation string){
+func mapToCSV(mapList []M, operation string, columnList []string){
 
     stringfilename := fmt.Sprintf("%s%s",operation,".csv")
 
@@ -98,14 +82,16 @@ func mapToCSV(mapList []M, operation string){
 
     fmt.Println(stringfilename)
 
+    writer.Write(columnList)
+
     for _, list:= range mapList{
         
         var s []string
 
         //index, M
-        for _, EME := range list{
+        for _, EME := range columnList{
             
-            s = append(s, EME)
+            s = append(s, list[EME])
             
         }
 
@@ -173,12 +159,6 @@ func ReduceProjection(mapList chan[]M, sendFinalValue chan[]M){
     sendFinalValue <- final
 }
 
-func timeEvaluator(timestring string) date{
-    t, err := time.Parse("2006-01-02", "2011-01-19")
-
-    return t
-}
-
 
 func ReduceSelect(colname string, operation string, compare_to string, mapList chan[]M, sendFinalValue chan[]M){
     var final []M
@@ -188,8 +168,21 @@ func ReduceSelect(colname string, operation string, compare_to string, mapList c
     case ">":
         for list:= range mapList{
             for _, value := range list{
-                if (value[colname] > compare_to){
-                    final = append(final, value)
+                if colname=="Fecha"{
+                    t1, _ := time.Parse("2006-01-02", value[colname])
+                    t2, _ := time.Parse("2006-01-02", compare_to)
+                    if (t1.After(t2)){
+                        final = append(final, value)
+                    }
+                } else if (colname =="Codigo comuna"||colname =="Casos confirmados" || colname =="Poblacion"||colname =="Codigo Region"){
+                    strsplit := strings.Split(value[colname],".")
+
+                    i1, _ := strconv.Atoi(strsplit[0])
+                    i2, _ := strconv.Atoi(compare_to)
+                    if (i1 > i2){
+                        final = append(final, value)
+                    }
+
                 }
             }
         }
@@ -197,8 +190,21 @@ func ReduceSelect(colname string, operation string, compare_to string, mapList c
     case "<":
         for list:= range mapList{
             for _, value := range list{
-                if value[colname] < compare_to{
-                    final = append(final,value)
+                if colname =="Fecha"{
+                    t1, _ := time.Parse("2006-01-02", value[colname])
+                    t2, _ := time.Parse("2006-01-02", compare_to)
+                    if (t1.Before(t2)){
+                        final = append(final, value)
+                    }
+                } else if (colname =="Codigo comuna"||colname =="Casos confirmados" || colname =="Poblacion"||colname =="Codigo Region") {
+                    strsplit := strings.Split(value[colname],".")
+
+                    i1, _ := strconv.Atoi(strsplit[0])
+                    i2, _ := strconv.Atoi(compare_to)
+                    if (i1 < i2){
+                        final = append(final, value)
+                    }
+
                 }
             }
         }
@@ -206,8 +212,21 @@ func ReduceSelect(colname string, operation string, compare_to string, mapList c
     case ">=":
         for list:= range mapList{
             for _, value := range list{
-                if value[colname] >= compare_to{
-                    final = append(final, value)
+                if colname =="Fecha"{
+                    t1, _ := time.Parse("2006-01-02", value[colname])
+                    t2, _ := time.Parse("2006-01-02", compare_to)
+                    if (t1 == t2 || t1.After(t2)){
+                        final = append(final, value)
+                    }
+                } else if (colname =="Codigo comuna"||colname =="Casos confirmados" || colname =="Poblacion"||colname =="Codigo Region"){
+                    strsplit := strings.Split(value[colname],".")
+
+                    i1, _ := strconv.Atoi(strsplit[0])
+                    i2, _ := strconv.Atoi(compare_to)
+                    if (i1 >= i2){
+                        final = append(final, value)
+                    }
+
                 }
             }
         }
@@ -215,8 +234,21 @@ func ReduceSelect(colname string, operation string, compare_to string, mapList c
     case "<=":
         for list:= range mapList{
             for _, value := range list{
-                if value[colname] <= compare_to{
-                    final = append(final, value)
+                if colname=="Fecha"{
+                    t1, _ := time.Parse("2006-01-02", value[colname])
+                    t2, _ := time.Parse("2006-01-02", compare_to)
+                    if (t1.Before(t2)|| t1==t2){
+                        final = append(final, value)
+                    }
+                } else if (colname =="Codigo comuna"||colname =="Casos confirmados" || colname =="Poblacion"||colname =="Codigo Region") {
+                    strsplit := strings.Split(value[colname],".")
+
+                    i1, _ := strconv.Atoi(strsplit[0])
+                    i2, _ := strconv.Atoi(compare_to)
+                    if (i1 >= i2){
+                        final = append(final, value)
+                    }
+
                 }
             }
         }
@@ -254,8 +286,14 @@ func main() {
     }
 
     defer csvFile.Close()
+
+    r  := csv.NewReader(csvFile)
+    col, err := r.Read()
+    if err != nil {
+        fmt.Println(err)
+    }
     
-    csvLines, err := csv.NewReader(csvFile).ReadAll()
+    csvLines, err := r.ReadAll()
     if err != nil {
         fmt.Println(err)
     }
@@ -266,10 +304,7 @@ func main() {
 
     switch first{
     case "SELECT":
-        fmt.Println("SE HA SELECCIONADO FUNCION SELECT")
-        fmt.Println(csvLines[0])
-
-
+        
         //USER INPUT
         in := bufio.NewReader(os.Stdin)
         linee, _ := in.ReadString('\n')
@@ -305,7 +340,7 @@ func main() {
         wg.Wait()
         close(lists)
 
-        mapToCSV(<- finalValue, first)
+        mapToCSV(<- finalValue, first, col)
 
     case "PROJECTION":
         fmt.Println("SE HA SELECCIONADO FUNCION PROJECTION")
@@ -353,10 +388,10 @@ func main() {
         wg.Wait()
         close(lists)
 
-        mapToCSV(<- finalValue, first)
+        mapToCSV(<- finalValue, first, keysToUse)
 
     case "GROUP":
-        /*
+        
         in2 := bufio.NewReader(os.Stdin)
         line2, _ := in2.ReadString('\n')
         col_name0 := strings.Replace(line2,"\n","",-1)
@@ -374,7 +409,7 @@ func main() {
 
         //SIEMPRE AGREGA, pedir input AGGREGATE es una formalidad
         groupAggregateFunction(col_name0, col_name1, functionSelect)
-        */
+        
     default:
         fmt.Println("NO ES OPERACION VALIDA")
     
